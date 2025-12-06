@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <title>Selfie Booth — Fullscreen Camera</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- Fullscreen camera container -->
+    <div id="cameraContainer" class="camera-container">
+      <video id="video" autoplay playsinline muted></video>
+
+      <!-- overlay controls -->
+      <div class="overlay">
+        <div class="top-row">
+          <button id="fsBtn" class="icon-btn" title="Toggle fullscreen">⤢</button>
+          <div class="branding">Selfie Booth</div>
+          <div></div>
+        </div>
+
+        <div class="center-hint">
+          <!-- <div class="circle-frame"></div> -->
+        </div>
+
+        <div class="bottom-row">
+          <button id="retakeBtn" class="primary">Retake</button>
+          <button id="captureBtn" class="shutter" style="color:#2EFF2E;"><i class="fa-regular fa-camera"></i></button>
+          <button id="uploadBtn" class="primary">Generate QR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden preview / result panel (shows after capture) -->
+    <div class="result-panel" id="resultPanel" aria-hidden="true">
+      <img id="preview" alt="Selfie preview">
+      <div class="result-actions">
+        <button id="downloadLocalBtn" class="secondary">Download</button>
+        <button id="closePreviewBtn" class="primary">Close</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <!-- QRious (still used on upload step) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
