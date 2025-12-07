@@ -16,66 +16,95 @@ const closePreviewBtn = document.getElementById('closePreviewBtn');
 let localDataUrl = null;
 let streamRef = null;
 let inactivityTimer = null;
-let pageCloseTimer = null;
-const INACTIVITY_TIMEOUT = 30000; // 30 seconds
-const PAGE_CLOSE_DELAY = 10000; // 10 seconds after QR removal
+let pageRefreshTimer = null;
+const QR_INACTIVITY_TIMEOUT = 30000; // 30 seconds for QR
+const PAGE_REFRESH_TIMEOUT = 10000;  // 10 seconds after QR removal
 
-// Reset inactivity timer
-function resetInactivityTimer() {
+// Reset all timers
+function resetAllTimers() {
     clearTimeout(inactivityTimer);
-    clearTimeout(pageCloseTimer);
-    
-    // Only set timer if we have a QR code or preview
-    if (resultPanel.style.display === 'block') {
-        inactivityTimer = setTimeout(() => {
-            closeEverything();
-        }, INACTIVITY_TIMEOUT);
-    }
+    clearTimeout(pageRefreshTimer);
 }
 
-// Close everything (panel and QR) and schedule page close
-function closeEverything() {
-    localDataUrl = null;
+// Start QR inactivity timer (30 seconds)
+function startQRInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    
+    inactivityTimer = setTimeout(() => {
+        // Remove QR and start page refresh countdown
+        removeQRAndStartRefresh();
+    }, QR_INACTIVITY_TIMEOUT);
+}
+
+// Remove QR and start 10-second page refresh countdown
+function removeQRAndStartRefresh() {
+    // Remove QR if exists
+    const qrCanvas = document.getElementById("qrCanvas");
+    if (qrCanvas) qrCanvas.remove();
+    
+    // Clear the preview panel
     previewImg.src = '';
-    resultPanel.style.display = 'none';
+    localDataUrl = null;
+    
+    statusEl.textContent = "QR removed. Page will refresh in 10 seconds...";
+    
+    // Start 10-second countdown for page refresh
+    startPageRefreshCountdown();
+}
+
+// Start 10-second countdown to refresh page
+function startPageRefreshCountdown() {
+    clearTimeout(pageRefreshTimer);
+    
+    pageRefreshTimer = setTimeout(() => {
+        refreshPage();
+    }, PAGE_REFRESH_TIMEOUT);
+}
+
+// Refresh the page
+function refreshPage() {
+    statusEl.textContent = "Refreshing page...";
+    
+    // Stop camera stream
+    if (streamRef) {
+        streamRef.getTracks().forEach(track => track.stop());
+    }
+    
+    // Refresh after short delay
+    setTimeout(() => {
+        location.reload();
+    }, 500);
+}
+
+// Close everything manually
+function closeEverything() {
+    resetAllTimers();
     
     // Remove QR if exists
     const qrCanvas = document.getElementById("qrCanvas");
     if (qrCanvas) qrCanvas.remove();
     
-    statusEl.textContent = "QR closed. Page will refresh in 10 seconds...";
+    // Clear preview
+    previewImg.src = '';
+    localDataUrl = null;
+    resultPanel.style.display = 'none';
     
-    // Clear existing timers
-    clearTimeout(inactivityTimer);
-    
-    // Set timer to refresh/close page after 10 seconds
-    pageCloseTimer = setTimeout(() => {
-        refreshPage();
-    }, PAGE_CLOSE_DELAY);
-}
-
-// Refresh the page (or show message then refresh)
-function refreshPage() {
-    statusEl.textContent = "Refreshing page...";
-    
-    // Stop camera stream first
-    if (streamRef) {
-        streamRef.getTracks().forEach(track => track.stop());
-        streamRef = null;
-    }
-    
-    // Wait a moment then refresh
-    setTimeout(() => {
-        location.reload();
-    }, 1000);
+    statusEl.textContent = "Ready — take a new selfie.";
 }
 
 // Add event listeners for user interaction
 function setupActivityListeners() {
-    document.addEventListener('click', resetInactivityTimer);
-    document.addEventListener('touchstart', resetInactivityTimer);
-    document.addEventListener('keypress', resetInactivityTimer);
-    document.addEventListener('mousemove', resetInactivityTimer);
+    const activityEvents = ['click', 'touchstart', 'keypress', 'mousemove', 'scroll'];
+    
+    activityEvents.forEach(eventType => {
+        document.addEventListener(eventType, () => {
+            // Only reset timers if we have a QR code
+            const qrCanvas = document.getElementById("qrCanvas");
+            if (qrCanvas) {
+                startQRInactivityTimer();
+            }
+        }, { passive: true });
+    });
 }
 
 // start camera with user-facing camera; prefer high resolution if available
@@ -92,7 +121,7 @@ async function startCamera(){
         streamRef = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = streamRef;
         await video.play();
-        statusEl.textContent = "";
+        statusEl.textContent = "Camera ready — smile!";
     } catch (err) {
         statusEl.textContent = "Camera error: " + err.message;
     }
@@ -123,21 +152,17 @@ captureBtn.addEventListener('click', () => {
     previewImg.src = localDataUrl;
     resultPanel.style.display = 'block';
     statusEl.textContent = "Captured — preview below.";
-    resetInactivityTimer();
+    
+    // Reset any existing timers when capturing new photo
+    resetAllTimers();
 });
 
 retakeBtn.addEventListener('click', async () => {
     closeEverything();
-    // Don't start page close timer for retake
-    clearTimeout(pageCloseTimer);
-    statusEl.textContent = "Ready — take a new selfie.";
 });
 
 closePreviewBtn.addEventListener('click', () => {
     closeEverything();
-    // Don't start page close timer for manual close
-    clearTimeout(pageCloseTimer);
-    statusEl.textContent = "Preview closed.";
 });
 
 downloadLocalBtn.addEventListener('click', () => {
@@ -148,7 +173,6 @@ downloadLocalBtn.addEventListener('click', () => {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    resetInactivityTimer();
 });
 
 // ---------------------------
@@ -199,8 +223,8 @@ uploadBtn.addEventListener('click', async () => {
         statusEl.textContent = "✅ QR generated! Auto-closing in 30 seconds if no interaction.";
         uploadBtn.disabled = false;
 
-        // Start inactivity timer
-        resetInactivityTimer();
+        // Start the 30-second inactivity timer for QR
+        startQRInactivityTimer();
 
     } catch (err) {
         console.error(err);
@@ -217,31 +241,34 @@ fsBtn.addEventListener('click', () => {
     } else {
         document.exitFullscreen?.();
     }
-    resetInactivityTimer();
 });
 
 // Initialize activity listeners
 setupActivityListeners();
 
-// Also add a manual override button for testing/emergency refresh
+// Add a manual refresh button for emergencies
 const refreshBtn = document.createElement('button');
-refreshBtn.textContent = "🔃";
+refreshBtn.innerHTML = "⟳";
 refreshBtn.style.position = "fixed";
-refreshBtn.style.bottom = "20px";
+refreshBtn.style.bottom = "80px";
 refreshBtn.style.right = "20px";
 refreshBtn.style.zIndex = "1000";
-refreshBtn.style.padding = "8px";
+refreshBtn.style.padding = "10px 12px";
 refreshBtn.style.borderRadius = "50%";
-refreshBtn.style.background = "var(--accent)";
-refreshBtn.style.border = "none";
+refreshBtn.style.background = "rgba(0, 200, 255, 0.8)";
+refreshBtn.style.border = "2px solid white";
 refreshBtn.style.color = "white";
 refreshBtn.style.cursor = "pointer";
-refreshBtn.style.display = "none"; // Hidden by default
-refreshBtn.title = "Manual refresh";
-refreshBtn.addEventListener('click', refreshPage);
-document.body.appendChild(refreshBtn);
+refreshBtn.style.fontSize = "18px";
+refreshBtn.style.fontWeight = "bold";
+refreshBtn.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+refreshBtn.title = "Manual Refresh";
+refreshBtn.addEventListener('click', () => {
+    statusEl.textContent = "Manual refresh triggered...";
+    refreshPage();
+});
 
-// Show refresh button after 60 seconds of inactivity as a fallback
+// Show the refresh button after 2 minutes as a fallback
 setTimeout(() => {
-    refreshBtn.style.display = "block";
-}, 60000);
+    document.body.appendChild(refreshBtn);
+}, 120000);
