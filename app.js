@@ -16,11 +16,14 @@ const closePreviewBtn = document.getElementById('closePreviewBtn');
 let localDataUrl = null;
 let streamRef = null;
 let inactivityTimer = null;
+let pageCloseTimer = null;
 const INACTIVITY_TIMEOUT = 30000; // 30 seconds
+const PAGE_CLOSE_DELAY = 10000; // 10 seconds after QR removal
 
 // Reset inactivity timer
 function resetInactivityTimer() {
     clearTimeout(inactivityTimer);
+    clearTimeout(pageCloseTimer);
     
     // Only set timer if we have a QR code or preview
     if (resultPanel.style.display === 'block') {
@@ -30,7 +33,7 @@ function resetInactivityTimer() {
     }
 }
 
-// Close everything (panel and QR)
+// Close everything (panel and QR) and schedule page close
 function closeEverything() {
     localDataUrl = null;
     previewImg.src = '';
@@ -40,8 +43,31 @@ function closeEverything() {
     const qrCanvas = document.getElementById("qrCanvas");
     if (qrCanvas) qrCanvas.remove();
     
-    statusEl.textContent = "Ready — take a new selfie.";
+    statusEl.textContent = "QR closed. Page will refresh in 10 seconds...";
+    
+    // Clear existing timers
     clearTimeout(inactivityTimer);
+    
+    // Set timer to refresh/close page after 10 seconds
+    pageCloseTimer = setTimeout(() => {
+        refreshPage();
+    }, PAGE_CLOSE_DELAY);
+}
+
+// Refresh the page (or show message then refresh)
+function refreshPage() {
+    statusEl.textContent = "Refreshing page...";
+    
+    // Stop camera stream first
+    if (streamRef) {
+        streamRef.getTracks().forEach(track => track.stop());
+        streamRef = null;
+    }
+    
+    // Wait a moment then refresh
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
 }
 
 // Add event listeners for user interaction
@@ -102,10 +128,16 @@ captureBtn.addEventListener('click', () => {
 
 retakeBtn.addEventListener('click', async () => {
     closeEverything();
+    // Don't start page close timer for retake
+    clearTimeout(pageCloseTimer);
+    statusEl.textContent = "Ready — take a new selfie.";
 });
 
 closePreviewBtn.addEventListener('click', () => {
     closeEverything();
+    // Don't start page close timer for manual close
+    clearTimeout(pageCloseTimer);
+    statusEl.textContent = "Preview closed.";
 });
 
 downloadLocalBtn.addEventListener('click', () => {
@@ -185,7 +217,31 @@ fsBtn.addEventListener('click', () => {
     } else {
         document.exitFullscreen?.();
     }
+    resetInactivityTimer();
 });
 
 // Initialize activity listeners
 setupActivityListeners();
+
+// Also add a manual override button for testing/emergency refresh
+const refreshBtn = document.createElement('button');
+refreshBtn.textContent = "🔃";
+refreshBtn.style.position = "fixed";
+refreshBtn.style.bottom = "20px";
+refreshBtn.style.right = "20px";
+refreshBtn.style.zIndex = "1000";
+refreshBtn.style.padding = "8px";
+refreshBtn.style.borderRadius = "50%";
+refreshBtn.style.background = "var(--accent)";
+refreshBtn.style.border = "none";
+refreshBtn.style.color = "white";
+refreshBtn.style.cursor = "pointer";
+refreshBtn.style.display = "none"; // Hidden by default
+refreshBtn.title = "Manual refresh";
+refreshBtn.addEventListener('click', refreshPage);
+document.body.appendChild(refreshBtn);
+
+// Show refresh button after 60 seconds of inactivity as a fallback
+setTimeout(() => {
+    refreshBtn.style.display = "block";
+}, 60000);
